@@ -258,7 +258,14 @@ export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> 
   }
 
   return new Promise((resolve, reject) => {
-    const args = ['--dump-single-json', '--no-playlist', '--no-warnings', url];
+    const cookiesFile = process.env.COOKIES_FILE_PATH;
+    const args = [
+      '--dump-single-json',
+      '--no-playlist',
+      '--no-warnings',
+      ...(cookiesFile ? ['--cookies', cookiesFile] : []),
+      url
+    ];
 
     const process = spawn(getYtDlpBinary(), args);
     let stdout = '';
