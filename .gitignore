@@ -1,0 +1,37 @@
+# Environment & Local
+.env.local
+.env.*.local
+.env
+
+# Dependencies
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Build output
+dist/
+build/
+.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Logs
+logs/
+*.log
+
+# Process manager
+.pm2/
