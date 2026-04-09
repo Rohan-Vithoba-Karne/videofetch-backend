@@ -46,22 +46,10 @@ function normalizeVideoUrl(rawUrl: string): string {
   try {
     const url = new URL(rawUrl);
     url.hash = '';
-
-    const removableParams = [
-      'si',
-      'feature',
-      'pp',
-      't',
-      'start',
-      'fbclid',
-      'gclid',
-      'ab_channel',
-    ];
-
+    const removableParams = ['si', 'feature', 'pp', 't', 'start', 'fbclid', 'gclid', 'ab_channel'];
     for (const key of removableParams) {
       url.searchParams.delete(key);
     }
-
     url.searchParams.sort();
     return url.toString();
   } catch {
@@ -70,54 +58,30 @@ function normalizeVideoUrl(rawUrl: string): string {
 }
 
 function getFormatHeight(format: RawYtDlpFormat): number | undefined {
-  if (format.height) {
-    return format.height;
-  }
-
+  if (format.height) return format.height;
   const resolutionMatch = format.resolution?.match(/(\d+)/);
-  if (resolutionMatch) {
-    return parseInt(resolutionMatch[1], 10);
-  }
-
-  if (format.width && format.height) {
-    return format.height;
-  }
-
+  if (resolutionMatch) return parseInt(resolutionMatch[1], 10);
+  if (format.width && format.height) return format.height;
   return undefined;
 }
 
 function getResolutionLabel(format: RawYtDlpFormat): string {
   const height = getFormatHeight(format);
-
-  if (!height) {
-    return 'unknown';
-  }
-
+  if (!height) return 'unknown';
   const closestPreset = QUALITY_PRESETS.reduce((closest, preset) => {
-    const currentDistance = Math.abs(preset.height - height);
-    const closestDistance = Math.abs(closest.height - height);
-
-    return currentDistance < closestDistance ? preset : closest;
+    return Math.abs(preset.height - height) < Math.abs(closest.height - height) ? preset : closest;
   }, QUALITY_PRESETS[0]);
-
   return closestPreset.label;
 }
 
 function getFilesizeMB(format: RawYtDlpFormat): number | undefined {
   const filesize = format.filesize || format.filesize_approx;
-
-  if (!filesize) {
-    return undefined;
-  }
-
+  if (!filesize) return undefined;
   return Math.max(1, Math.round(filesize / (1024 * 1024)));
 }
 
 function getAudioSelector(container: string | undefined): string {
-  if (container === 'webm') {
-    return 'bestaudio[ext=webm]/bestaudio/best';
-  }
-
+  if (container === 'webm') return 'bestaudio[ext=webm]/bestaudio/best';
   return 'bestaudio[ext=m4a]/bestaudio/best';
 }
 
@@ -136,19 +100,9 @@ function isVideoFormat(format: RawYtDlpFormat): boolean {
 
 function getVideoCandidateScore(format: RawYtDlpFormat): number {
   const hasAudio = Boolean(format.acodec && format.acodec !== 'none');
-
-  if (format.ext === 'mp4' && hasAudio) {
-    return 0;
-  }
-
-  if (format.ext === 'mp4') {
-    return 1;
-  }
-
-  if (format.ext === 'webm' && hasAudio) {
-    return 2;
-  }
-
+  if (format.ext === 'mp4' && hasAudio) return 0;
+  if (format.ext === 'mp4') return 1;
+  if (format.ext === 'webm' && hasAudio) return 2;
   return 3;
 }
 
@@ -160,29 +114,18 @@ function getAudioCandidateScore(format: RawYtDlpFormat): number {
 
 function buildFormats(info: RawYtDlpInfo): VideoFormat[] {
   const formats = info.formats || [];
-  const bestVideoByPreset = new Map<
-    string,
-    { raw: RawYtDlpFormat; resolution: string }
-  >();
+  const bestVideoByPreset = new Map<string, { raw: RawYtDlpFormat; resolution: string }>();
   let bestAudioFormat: RawYtDlpFormat | null = null;
 
   for (const format of formats) {
-    if (!format.format_id || !format.ext) {
-      continue;
-    }
-
+    if (!format.format_id || !format.ext) continue;
     if (isVideoFormat(format) && (format.ext === 'mp4' || format.ext === 'webm')) {
       const resolution = getResolutionLabel(format);
       const existing = bestVideoByPreset.get(resolution);
-
-      if (
-        !existing ||
-        getVideoCandidateScore(format) < getVideoCandidateScore(existing.raw)
-      ) {
+      if (!existing || getVideoCandidateScore(format) < getVideoCandidateScore(existing.raw)) {
         bestVideoByPreset.set(resolution, { raw: format, resolution });
       }
     }
-
     if (isAudioOnly(format) && ['m4a', 'webm', 'mp3', 'opus'].includes(format.ext)) {
       if (!bestAudioFormat || getAudioCandidateScore(format) < getAudioCandidateScore(bestAudioFormat)) {
         bestAudioFormat = format;
@@ -195,7 +138,6 @@ function buildFormats(info: RawYtDlpInfo): VideoFormat[] {
     .map(({ raw, resolution }) => {
       const hasAudio = Boolean(raw.acodec && raw.acodec !== 'none');
       const deliveryMode = hasAudio ? 'fast' : 'merge';
-
       return {
         id: hasAudio ? raw.format_id! : `${raw.format_id}+${getAudioSelector(raw.ext)}`,
         resolution,
@@ -211,80 +153,71 @@ function buildFormats(info: RawYtDlpInfo): VideoFormat[] {
     });
 
   const audioFormats: VideoFormat[] = bestAudioFormat
-    ? [
-        {
-          id: bestAudioFormat.format_id!,
-          resolution: 'Audio Only',
-          container: bestAudioFormat.ext!,
-          sizeMB: getFilesizeMB(bestAudioFormat),
-          bitrate: getBitrateLabel(bestAudioFormat),
-          note: 'Fast start',
-          isAudio: true,
-          hasAudio: true,
-          deliveryMode: 'audio',
-          estimatedStart: 'instant',
-        },
-      ]
+    ? [{
+        id: bestAudioFormat.format_id!,
+        resolution: 'Audio Only',
+        container: bestAudioFormat.ext!,
+        sizeMB: getFilesizeMB(bestAudioFormat),
+        bitrate: getBitrateLabel(bestAudioFormat),
+        note: 'Fast start',
+        isAudio: true,
+        hasAudio: true,
+        deliveryMode: 'audio',
+        estimatedStart: 'instant',
+      }]
     : [];
 
   const organizedFormats = [...videoFormats, ...audioFormats];
+  if (organizedFormats.length > 0) return organizedFormats;
 
-  if (organizedFormats.length > 0) {
-    return organizedFormats;
-  }
-
-  return [
-    {
-      id: 'best',
-      resolution: 'Best Available',
-      container: 'mp4',
-      sizeMB: undefined,
-      bitrate: undefined,
-      note: 'Best quality',
-      isAudio: false,
-      hasAudio: true,
-      deliveryMode: 'fast',
-      estimatedStart: 'instant',
-    },
-  ];
+  return [{
+    id: 'best',
+    resolution: 'Best Available',
+    container: 'mp4',
+    sizeMB: undefined,
+    bitrate: undefined,
+    note: 'Best quality',
+    isAudio: false,
+    hasAudio: true,
+    deliveryMode: 'fast',
+    estimatedStart: 'instant',
+  }];
 }
 
 export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> {
   const normalizedUrl = normalizeVideoUrl(url);
   const cachedEntry = metadataCache.get(normalizedUrl);
-
   if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
     return cachedEntry.metadata;
   }
 
   return new Promise((resolve, reject) => {
     const cookiesFile = process.env.COOKIES_FILE_PATH;
-    const args = [
+    const args: string[] = [
       '--dump-single-json',
       '--no-playlist',
       '--no-warnings',
       ...(cookiesFile ? ['--cookies', cookiesFile] : []),
-      url
+      url,
     ];
 
-    const process = spawn(getYtDlpBinary(), args);
+    const child = spawn(getYtDlpBinary(), args);
     let stdout = '';
     let stderr = '';
 
-    process.stdout.on('data', (data) => {
+    child.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
 
-    process.stderr.on('data', (data) => {
+    child.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
-    process.on('close', (code) => {
+    child.on('close', (code: number) => {
       if (code !== 0) {
         reject(new Error(`yt-dlp failed: ${stderr.trim() || 'Unable to analyze video'}`));
         return;
       }
-
       try {
         const info = JSON.parse(stdout) as RawYtDlpInfo;
         const metadata: VideoMetadata = {
@@ -295,19 +228,17 @@ export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> 
           uploader: info.uploader || undefined,
           uploadDate: info.upload_date || undefined,
         };
-
         metadataCache.set(normalizedUrl, {
           expiresAt: Date.now() + METADATA_CACHE_TTL_MS,
           metadata,
         });
-
         resolve(metadata);
       } catch (parseError) {
         reject(new Error(`Failed to parse yt-dlp output: ${parseError}`));
       }
     });
 
-    process.on('error', (err) => {
+    child.on('error', (err: Error) => {
       reject(new Error(`Failed to run yt-dlp: ${err.message}`));
     });
   });
