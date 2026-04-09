@@ -8,6 +8,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 initializeRuntimeTools();
 
+console.log('COOKIES_FILE_PATH:', process.env.COOKIES_FILE_PATH);
+console.log('YT_DLP_PATH:', process.env.YT_DLP_PATH);
+
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
