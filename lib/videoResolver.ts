@@ -1,4 +1,7 @@
 import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { VideoFormat, VideoMetadata } from '../types/video';
 import { getYtDlpBinary } from './runtimeTools';
 
@@ -192,7 +195,14 @@ export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> 
   }
 
   return new Promise((resolve, reject) => {
-    const cookiesFile = process.env.COOKIES_FILE_PATH;
+    // Write cookies from env variable to a temp file
+    let cookiesTempFile: string | null = null;
+    const cookiesContent = process.env.YOUTUBE_COOKIES;
+    if (cookiesContent) {
+      cookiesTempFile = path.join(os.tmpdir(), `yt-cookies-${Date.now()}.txt`);
+      fs.writeFileSync(cookiesTempFile, cookiesContent, 'utf8');
+    }
+
     const args: string[] = [
       '--dump-single-json',
       '--no-playlist',
@@ -200,7 +210,7 @@ export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> 
       '--extractor-args', 'youtube:player_client=web,web_creator,tv_embedded',
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       '--add-header', 'Accept-Language:en-US,en;q=0.9',
-      ...(cookiesFile ? ['--cookies', cookiesFile] : []),
+      ...(cookiesTempFile ? ['--cookies', cookiesTempFile] : []),
       url,
     ];
 
@@ -217,6 +227,10 @@ export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> 
     });
 
     child.on('close', (code: number) => {
+      // Cleanup temp cookies file
+      if (cookiesTempFile && fs.existsSync(cookiesTempFile)) {
+        fs.unlinkSync(cookiesTempFile);
+      }
       if (code !== 0) {
         reject(new Error(`yt-dlp failed: ${stderr.trim() || 'Unable to analyze video'}`));
         return;
