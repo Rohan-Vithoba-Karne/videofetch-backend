@@ -2,6 +2,22 @@ import { Request, Response } from 'express';
 import { analyzeRequestSchema } from '../lib/validation';
 import { checkRateLimit } from '../lib/rateLimiter';
 
+type YouTubeApiResponse = {
+  items?: Array<{
+    snippet: {
+      title: string;
+      thumbnails: {
+        maxres?: { url: string };
+        high?: { url: string };
+        medium?: { url: string };
+      };
+    };
+    contentDetails: {
+      duration: string;
+    };
+  }>;
+};
+
 function extractVideoId(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -59,7 +75,7 @@ export async function analyzeRoute(req: Request, res: Response) {
 
     const apiUrl = `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&key=${apiKey}&part=snippet,contentDetails`;
     const response = await fetch(apiUrl);
-    const data = await response.json();
+    const data = await response.json() as YouTubeApiResponse;
 
     if (!data.items || data.items.length === 0) {
       return res.status(404).json({ error: 'Video not found or is private' });
