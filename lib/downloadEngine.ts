@@ -54,7 +54,20 @@ function buildDownloadArgs({
   needsMerge,
   container,
 }: DownloadArgsOptions): string[] {
-  const args = ['-f', formatId, '-o', output, '--no-playlist', '-N', String(DOWNLOAD_CONCURRENT_FRAGMENTS)];
+  const args = [
+    '-f', formatId,
+    '-o', output,
+    '--no-playlist',
+    '-N', String(DOWNLOAD_CONCURRENT_FRAGMENTS),
+    '--extractor-args', 'youtube:player_client=web,web_creator,tv_embedded',
+    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    '--add-header', 'Accept-Language:en-US,en;q=0.9',
+  ];
+
+  const cookiesFile = process.env.COOKIES_FILE_PATH;
+  if (cookiesFile) {
+    args.push('--cookies', cookiesFile);
+  }
 
   args.push(...buildProgressArgs());
 
@@ -67,13 +80,13 @@ function buildDownloadArgs({
 }
 
 function monitorProcessOutput(
-  process: ChildProcessWithoutNullStreams,
+  proc: ChildProcessWithoutNullStreams,
   onProgress?: (progress: number) => void
 ): void {
   let bufferedOutput = '';
   let duration = 0;
 
-  process.stderr.on('data', (data: Buffer) => {
+  proc.stderr.on('data', (data: Buffer) => {
     const output = data.toString();
     bufferedOutput += output;
 
@@ -104,7 +117,7 @@ function monitorProcessOutput(
     }
 
     if (duration > MAX_DURATION) {
-      process.kill();
+      proc.kill();
     }
   });
 }
@@ -123,26 +136,26 @@ export function startDirectDownload(
     container,
   });
 
-  const process = spawn(getYtDlpBinary(), args, {
+  const proc = spawn(getYtDlpBinary(), args, {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
-  monitorProcessOutput(process, onProgress);
+  monitorProcessOutput(proc, onProgress);
 
   const timeout = setTimeout(() => {
-    process.kill();
+    proc.kill();
   }, DOWNLOAD_TIMEOUT);
 
-  process.on('close', () => {
+  proc.on('close', () => {
     clearTimeout(timeout);
   });
 
   return {
-    process,
+    process: proc,
     cancel: () => {
       clearTimeout(timeout);
-      if (!process.killed) {
-        process.kill();
+      if (!proc.killed) {
+        proc.kill();
       }
     },
   };
@@ -158,7 +171,7 @@ export function downloadVideoToTemp(
   const tempFilePath = join(tmpdir(), `videofetch_${Date.now()}${sanitizedExtension}`);
   let canceled = false;
 
-  const process = spawn(
+  const proc = spawn(
     getYtDlpBinary(),
     buildDownloadArgs({
       url,
@@ -172,12 +185,12 @@ export function downloadVideoToTemp(
     }
   );
 
-  monitorProcessOutput(process, onProgress);
+  monitorProcessOutput(proc, onProgress);
 
   const promise = new Promise<DownloadResult>((resolve) => {
     const timeout = setTimeout(() => {
       canceled = true;
-      process.kill();
+      proc.kill();
       cleanupTempFile(tempFilePath);
       resolve({
         success: false,
@@ -185,7 +198,7 @@ export function downloadVideoToTemp(
       });
     }, DOWNLOAD_TIMEOUT);
 
-    process.on('close', (code: number | null) => {
+    proc.on('close', (code: number | null) => {
       clearTimeout(timeout);
 
       if (canceled) {
@@ -252,7 +265,7 @@ export function downloadVideoToTemp(
       });
     });
 
-    process.on('error', (err: Error) => {
+    proc.on('error', (err: Error) => {
       clearTimeout(timeout);
       cleanupTempFile(tempFilePath);
       resolve({
@@ -266,8 +279,8 @@ export function downloadVideoToTemp(
     promise,
     cancel: () => {
       canceled = true;
-      if (!process.killed) {
-        process.kill();
+      if (!proc.killed) {
+        proc.kill();
       }
       cleanupTempFile(tempFilePath);
     },
