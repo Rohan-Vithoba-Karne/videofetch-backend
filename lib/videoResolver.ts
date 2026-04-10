@@ -197,6 +197,7 @@ export async function resolveVideoMetadata(url: string): Promise<VideoMetadata> 
       '--dump-single-json',
       '--no-playlist',
       '--no-warnings',
+      '--extractor-args', 'youtube:player_client=web,web_creator,tv_embedded',
       ...(cookiesFile ? ['--cookies', cookiesFile] : []),
       url,
     ];
